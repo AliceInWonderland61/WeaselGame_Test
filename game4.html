@@ -36,9 +36,9 @@ class WeaselGame {
         this.invulnerable = false;
         this.invulnerableUntil = 0;
         this.invulnerableDuration = 1000;
-        this.lastLifeLostTime = Date.now();
+        // Life gain feature
         this.lastLifeGainTime = Date.now();
-        this.lifeGainInterval = 10000;
+        this.lifeGainInterval = 10000; // 10 seconds
         this.setupInputHandlers();
         this.gameLoop();
     }
@@ -62,7 +62,6 @@ class WeaselGame {
     loseLifeAndReset() {
         this.lives--;
         this.updateLivesUI();
-        this.lastLifeLostTime = Date.now();
         if (this.lives > 0) {
             this.player.x = this.gameWidth / 2 - this.player.width / 2;
             this.player.y = this.gameHeight / 2 - this.player.height / 2;
@@ -78,12 +77,8 @@ class WeaselGame {
         if (this.invulnerable && currentTime > this.invulnerableUntil) {
             this.invulnerable = false;
         }
-        // Gain a life every 10 seconds of not dying
-        if (
-            this.lives > 0 &&
-            currentTime - this.lastLifeLostTime >= this.lifeGainInterval &&
-            currentTime - this.lastLifeGainTime >= this.lifeGainInterval
-        ) {
+        // Add a life every 10 seconds if lives > 0
+        if (this.lives > 0 && currentTime - this.lastLifeGainTime >= this.lifeGainInterval) {
             this.lives++;
             this.updateLivesUI();
             this.lastLifeGainTime = currentTime;
@@ -186,9 +181,6 @@ class WeaselGame {
         this.ctx.strokeStyle = '#bfa600';
         this.ctx.lineWidth = 3;
         this.ctx.stroke();
-    }
-    drawUI() {
-        // Optional: draw UI elements here
     }
     drawGameOver() {
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
