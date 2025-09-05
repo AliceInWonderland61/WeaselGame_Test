@@ -226,13 +226,13 @@
                 const playerCenterY = this.player.y + this.player.height / 2;
                 const playerRadius = Math.min(this.player.width, this.player.height) / 2;
                 for (let ring of this.rings) {
-                    const distance = Math.sqrt(
-                        Math.pow(playerCenterX - ring.x, 2) + 
-                        Math.pow(playerCenterY - ring.y, 2)
-                    );
-                    if (distance < playerRadius + ring.radius) {
+                    const dx = playerCenterX - ring.x;
+                    const dy = playerCenterY - ring.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < ring.radius + playerRadius) {
+                        // Collision detected!
                         this.loseLifeAndReset();
-                        return;
+                        break; // Only lose one life per frame
                     }
                 }
             }
@@ -309,3 +309,4 @@
         });
     </script>
 </body>
+</html>
