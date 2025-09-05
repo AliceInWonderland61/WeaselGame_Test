@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epic RingWeasel (Gain Life Every 10s)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #2c3e50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        .game-container {
+            background: #34495e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        canvas {
+            border: 3px solid #ecf0f1;
+            background: #000;
+            display: block;
+            border-radius: 5px;
+        }
+        .controls {
+            color: white;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .controls h3 {
+            margin: 0 0 10px 0;
+            color: #ecf0f1;
+        }
+        .key {
+            background: #3498db;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin: 0 2px;
+        }
+        .lives-ui {
+            color: #fff;
+            font-size: 22px;
+            margin-bottom: 10px;
+            text-align: center;
+            letter-spacing: 2px;
+            font-weight: bold;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="lives-ui" id="livesUI">Lives: 3</div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="controls">
+            <h3>Controls</h3>
+            <p>Use <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> keys to move the weasel</p>
+        </div>
+    </div>
+    <script>
+        class WeaselGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.gameWidth = this.canvas.width;
+                this.gameHeight = this.canvas.height;
+                this.player = {
+                    x: this.gameWidth / 2 - 25,
+                    y: this.gameHeight / 2 - 25,
+                    width: 50,
+                    height: 50,
+                    speed: 5,
+                    image: null,
+                    imageLoaded: false
+                };
+                this.keys = { w: false, a: false, s: false, d: false };
+                this.gameState = 'playing';
+                this.gameStartTime = Date.now();
+                this.gameEndTime = null;
+                this.lives = 3;
+                this.livesUI = document.getElementById('livesUI');
+                this.updateLivesUI();
+                this.rings = [];
+                this.ringSpawnDelay = 3000;
+                this.lastRingSpawnTime = Date.now();
+                this.hasProtectiveRing = true;
+                this.protectiveRingRadius = 40;
+                this.invulnerable = false;
+                this.invulnerableUntil = 0;
+                this.invulnerableDuration = 1000; // 1 second
+                // Life gain logic
+                this.lastLifeLostTime = Date.now();
+                this.lastLifeGainTime = Date.now();
+                this.lifeGainInterval = 10000; // 10 seconds
+                this.init();
+            }
+            init() {
+                this.player.image = new Image();
+                this.player.image.onload = () => { this.player.imageLoaded = true; };
+                this.player.image.onerror = () => { this.player.imageLoaded = false; };
+                this.player.image.src = 'weasel.png';
+                this.setupInputHandlers();
+                this.gameLoop();
+            }
+            setupInputHandlers() {
+                document.addEventListener('keydown', (e) => {
+                    if (e.key.toLowerCase() in this.keys) {
+                        this.keys[e.key.toLowerCase()] = true;
+                        e.preventDefault();
+                    }
+                });
+                document.addEventListener('keyup', (e) => {
+                    if (e.key.toLowerCase() in this.keys) {
+                        this.keys[e.key.toLowerCase()] = false;
+                        e.preventDefault();
+                    }
+                });
+            }
+            updateLivesUI() {
+                this.livesUI.textContent = `Lives: ${this.lives}`;
+            }
+            loseLifeAndReset() {
+                this.lives--;
+                this.updateLivesUI();
+                this.lastLifeLostTime = Date.now(); // Reset timer on death
+                if (this.lives > 0) {
+                    this.player.x = this.gameWidth / 2 - this.player.width / 2;
+                    this.player.y = this.gameHeight / 2 - this.player.height / 2;
+                    this.invulnerable = true;
+                    this.invulnerableUntil = Date.now() + this.invulnerableDuration;
+                } else {
+                    this.gameState = 'gameOver';
+                    this.gameEndTime = Date.now();
+                }
+            }
+            update() {
+                if (this.gameState === 'gameOver') return;
+                const currentTime = Date.now();
+
+                // Handle invulnerability timer
+                if (this.invulnerable && currentTime > this.invulnerableUntil) {
+                    this.invulnerable = false;
+                }
+
+                // Gain a life every 10 seconds of not dying
+                if (
+                    this.lives > 0 &&
+                    currentTime - this.lastLifeLostTime >= this.lifeGainInterval &&
+                    currentTime - this.lastLifeGainTime >= this.lifeGainInterval
+                ) {
+                    this.lives++;
+                    this.updateLivesUI();
+                    this.lastLifeGainTime = currentTime;
+                }
+
+                // Spawn a new ring every ringSpawnDelay ms
+                if (currentTime - this.lastRingSpawnTime > this.ringSpawnDelay) {
+                    this.spawnRing();
+                    this.lastRingSpawnTime = currentTime;
+                }
+
+                if (this.keys.w) this.player.y -= this.player.speed;
+                if (this.keys.s) this.player.y += this.player.speed;
+                if (this.keys.a) this.player.x -= this.player.speed;
+                if (this.keys.d) this.player.x += this.player.speed;
+                this.player.x = Math.max(0, Math.min(this.gameWidth - this.player.width, this.player.x));
+                this.player.y = Math.max(0, Math.min(this.gameHeight - this.player.height, this.player.y));
+                this.updateRings();
+                this.checkCollisions();
+            }
+            spawnRing() {
+                // Spawn at random edge, move toward player
+                const edge = Math.floor(Math.random() * 4);
+                let x, y;
+                if (edge === 0) { x = 0; y = Math.random() * this.gameHeight; }
+                else if (edge === 1) { x = this.gameWidth; y = Math.random() * this.gameHeight; }
+                else if (edge === 2) { x = Math.random() * this.gameWidth; y = 0; }
+                else { x = Math.random() * this.gameWidth; y = this.gameHeight; }
+                const playerCenterX = this.player.x + this.player.width / 2;
+                const playerCenterY = this.player.y + this.player.height / 2;
+                let dx = playerCenterX - x;
+                let dy = playerCenterY - y;
+                const speed = 2 + Math.random() * 1.5;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                dx = (dx / length) * speed;
+                dy = (dy / length) * speed;
+                this.rings.push({
+                    x, y,
+                    dx, dy,
+                    radius: 30,
+                    speed
+                });
+            }
+            updateRings() {
+                for (let ring of this.rings) {
+                    ring.x += ring.dx;
+                    ring.y += ring.dy;
+                }
+                // Remove rings that go off screen
+                this.rings = this.rings.filter(ring =>
+                    ring.x > -50 && ring.x < this.gameWidth + 50 &&
+                    ring.y > -50 && ring.y < this.gameHeight + 50
+                );
+            }
+            checkCollisions() {
+                if (this.invulnerable) return; // Don't check collisions if invulnerable
+
+                const playerCenterX = this.player.x + this.player.width / 2;
+                const playerCenterY = this.player.y + this.player.height / 2;
+                const playerRadius = Math.min(this.player.width, this.player.height) / 2;
+                let protectiveRingUsed = false;
+
+                for (let i = this.rings.length - 1; i >= 0; i--) {
+                    const ring = this.rings[i];
+                    const dx = playerCenterX - ring.x;
+                    const dy = playerCenterY - ring.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (this.hasProtectiveRing && !protectiveRingUsed) {
+                        if (distance < this.protectiveRingRadius + ring.radius) {
+                            this.rings.splice(i, 1);
+                            this.hasProtectiveRing = false;
+                            protectiveRingUsed = true;
+                            continue;
+                        }
+                    } else if (!this.hasProtectiveRing) {
+                        if (distance < playerRadius + ring.radius) {
+                            this.loseLifeAndReset();
+                            break;
+                        }
+                    }
+                }
+            }
+            drawRings() {
+                this.ctx.strokeStyle = '#ff0000';
+                this.ctx.lineWidth = 4;
+                for (let ring of this.rings) {
+                    this.ctx.beginPath();
+                    this.ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
+                    this.ctx.stroke();
+                }
+            }
+            drawPlayer() {
+                const centerX = this.player.x + this.player.width / 2;
+                const centerY = this.player.y + this.player.height / 2;
+                // Draw protective ring if active
+                if (this.hasProtectiveRing) {
+                    this.ctx.save();
+                    this.ctx.beginPath();
+                    this.ctx.arc(centerX, centerY, this.protectiveRingRadius, 0, Math.PI * 2);
+                    this.ctx.strokeStyle = '#00e6ff';
+                    this.ctx.lineWidth = 6;
+                    this.ctx.shadowColor = '#00e6ff';
+                    this.ctx.shadowBlur = 15;
+                    this.ctx.stroke();
+                    this.ctx.restore();
+                }
+                // Draw player image or fallback
+                if (this.player.imageLoaded && this.player.image.complete) {
+                    this.ctx.drawImage(this.player.image, this.player.x, this.player.y, this.player.width, this.player.height);
+                } else {
+                    // fallback: draw a yellow circle
+                    this.ctx.beginPath();
+                    this.ctx.arc(centerX, centerY, this.player.width / 2, 0, Math.PI * 2);
+                    this.ctx.fillStyle = '#ffe066';
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = '#bfa600';
+                    this.ctx.lineWidth = 3;
+                    this.ctx.stroke();
+                }
+            }
+            drawUI() {
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                this.ctx.fillRect(10, 10, 200, 100);
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = '14px Arial';
+                this.ctx.textAlign = 'left';
+                this.ctx.fillText(`Position: ${Math.round(this.player.x)}, ${Math.round(this.player.y)}`, 20, 30);
+                this.ctx.fillText(`Speed: ${this.player.speed}`, 20, 50);
+                this.ctx.fillText(`Rings: ${this.rings.length}`, 20, 70);
+                this.ctx.fillText(`Lives: ${this.lives}`, 20, 90);
+                const currentTime = this.gameState === 'gameOver' ? this.gameEndTime : Date.now();
+                const survivalTime = Math.floor((currentTime - this.gameStartTime) / 1000);
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                this.ctx.fillRect(this.gameWidth - 120, 10, 110, 30);
+                this.ctx.fillStyle = '#fff';
+                this.ctx.textAlign = 'right';
+                this.ctx.fillText(`Time: ${survivalTime}s`, this.gameWidth - 20, 30);
+            }
+            drawGameOver() {
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                this.ctx.fillRect(0, 0, this.gameWidth, this.gameHeight);
+                this.ctx.fillStyle = '#ff0000';
+                this.ctx.font = 'bold 48px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('GAME OVER', this.gameWidth / 2, this.gameHeight / 2 - 40);
+            }
+            gameLoop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+        window.addEventListener('load', () => {
+            new WeaselGame();
+        });
+    </script>
+</body>
+</html>
