@@ -93,6 +93,7 @@
                 this.ringsSpawned = 0;
                 this.hasProtectiveRing = true;
                 this.protectiveRingRadius = 40; // Visible ring radius
+                this.lastRingSpawnTime = 0;
                 this.init();
             }
             init() {
@@ -133,10 +134,13 @@
             update() {
                 if (this.gameState === 'gameOver') return;
                 const currentTime = Date.now();
-                if (this.ringsSpawned < 3 && currentTime - this.gameStartTime > this.ringSpawnDelay * (this.ringsSpawned + 1)) {
+
+                // Spawn a new ring every ringSpawnDelay ms
+                if (currentTime - this.lastRingSpawnTime > this.ringSpawnDelay) {
                     this.spawnRing();
-                    this.ringsSpawned++;
+                    this.lastRingSpawnTime = currentTime;
                 }
+
                 if (this.keys.w) this.player.y -= this.player.speed;
                 if (this.keys.s) this.player.y += this.player.speed;
                 if (this.keys.a) this.player.x -= this.player.speed;
