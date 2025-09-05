@@ -8,12 +8,34 @@
         .game-container { background: #34495e; padding: 20px; border-radius: 10px; }
         canvas { border: 3px solid #ecf0f1; background: #000; border-radius: 5px; display: block; }
         .lives-ui { color: #fff; font-size: 22px; margin-bottom: 10px; text-align: center; letter-spacing: 2px; font-weight: bold; user-select: none; }
+        .controls {
+            color: white;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        .controls h3 {
+            margin: 0 0 10px 0;
+            color: #ecf0f1;
+        }
+        .key {
+            background: #3498db;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin: 0 2px;
+        }
     </style>
 </head>
 <body>
 <div class="game-container">
     <div class="lives-ui" id="livesUI">Lives: 3</div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div class="controls">
+        <h3>Controls</h3>
+        <p>Use <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> keys to move the weasel</p>
+    </div>
 </div>
 <script>
 class WeaselGame {
@@ -22,9 +44,19 @@ class WeaselGame {
         this.ctx = this.canvas.getContext('2d');
         this.gameWidth = this.canvas.width;
         this.gameHeight = this.canvas.height;
-        this.player = { x: this.gameWidth/2-25, y: this.gameHeight/2-25, width: 50, height: 50, speed: 5 };
+        this.player = {
+            x: this.gameWidth / 2 - 25,
+            y: this.gameHeight / 2 - 25,
+            width: 50,
+            height: 50,
+            speed: 5,
+            image: null,
+            imageLoaded: false
+        };
         this.keys = { w: false, a: false, s: false, d: false };
         this.gameState = 'playing';
+        this.gameStartTime = Date.now();
+        this.gameEndTime = null;
         this.lives = 3;
         this.livesUI = document.getElementById('livesUI');
         this.updateLivesUI();
@@ -39,6 +71,13 @@ class WeaselGame {
         // Life gain feature
         this.lastLifeGainTime = Date.now();
         this.lifeGainInterval = 10000; // 10 seconds
+        this.init();
+    }
+    init() {
+        this.player.image = new Image();
+        this.player.image.onload = () => { this.player.imageLoaded = true; };
+        this.player.image.onerror = () => { this.player.imageLoaded = false; };
+        this.player.image.src = 'weasel.png';
         this.setupInputHandlers();
         this.gameLoop();
     }
@@ -69,6 +108,7 @@ class WeaselGame {
             this.invulnerableUntil = Date.now() + this.invulnerableDuration;
         } else {
             this.gameState = 'gameOver';
+            this.gameEndTime = Date.now();
         }
     }
     update() {
@@ -173,14 +213,35 @@ class WeaselGame {
             this.ctx.stroke();
             this.ctx.restore();
         }
-        // Always draw fallback yellow circle
-        this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY, this.player.width / 2, 0, Math.PI * 2);
-        this.ctx.fillStyle = '#ffe066';
-        this.ctx.fill();
-        this.ctx.strokeStyle = '#bfa600';
-        this.ctx.lineWidth = 3;
-        this.ctx.stroke();
+        if (this.player.imageLoaded && this.player.image && this.player.image.complete) {
+            this.ctx.drawImage(this.player.image, this.player.x, this.player.y, this.player.width, this.player.height);
+        } else {
+            this.ctx.beginPath();
+            this.ctx.arc(centerX, centerY, this.player.width / 2, 0, Math.PI * 2);
+            this.ctx.fillStyle = '#ffe066';
+            this.ctx.fill();
+            this.ctx.strokeStyle = '#bfa600';
+            this.ctx.lineWidth = 3;
+            this.ctx.stroke();
+        }
+    }
+    drawUI() {
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        this.ctx.fillRect(10, 10, 200, 100);
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = '14px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText(`Position: ${Math.round(this.player.x)}, ${Math.round(this.player.y)}`, 20, 30);
+        this.ctx.fillText(`Speed: ${this.player.speed}`, 20, 50);
+        this.ctx.fillText(`Rings: ${this.rings.length}`, 20, 70);
+        this.ctx.fillText(`Lives: ${this.lives}`, 20, 90);
+        const currentTime = this.gameState === 'gameOver' ? this.gameEndTime : Date.now();
+        const survivalTime = Math.floor((currentTime - this.gameStartTime) / 1000);
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        this.ctx.fillRect(this.gameWidth - 120, 10, 110, 30);
+        this.ctx.fillStyle = '#fff';
+        this.ctx.textAlign = 'right';
+        this.ctx.fillText(`Time: ${survivalTime}s`, this.gameWidth - 20, 30);
     }
     drawGameOver() {
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
@@ -197,6 +258,7 @@ class WeaselGame {
         this.ctx.fillRect(0, 0, this.gameWidth, this.gameHeight);
         this.drawRings();
         this.drawPlayer();
+        this.drawUI();
         if (this.gameState === 'gameOver') this.drawGameOver();
         requestAnimationFrame(() => this.gameLoop());
     }
